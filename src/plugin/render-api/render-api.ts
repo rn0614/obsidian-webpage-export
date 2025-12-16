@@ -1168,6 +1168,24 @@ export namespace _MarkdownRendererInternal {
 			if (container) container.appendChild(embed);
 		});
 
+		// fix excalidraw blob URLs (replace with filesource attribute)
+		html.querySelectorAll("img.excalidraw-svg, img.excalidraw-embedded-img, img[filesource*='.excalidraw']").forEach((img: HTMLElement) => {
+			const src = img.getAttribute("src");
+			const filesource = img.getAttribute("filesource");
+			
+			// blob URL은 웹에서 작동하지 않으므로 제거
+			if (src && src.startsWith("blob:") && filesource) {
+				// blob URL 제거하고 filesource를 data-src로 이동
+				img.removeAttribute("src");
+				img.setAttribute("data-excalidraw-source", filesource);
+				
+				// 프론트엔드에서 처리할 수 있도록 클래스 추가
+				img.classList.add("excalidraw-embed-pending");
+				
+				ExportLog.log(`Replaced blob URL with filesource for Excalidraw: ${filesource}`);
+			}
+		});
+
 		// remove all MAKE.md elements
 		html.querySelectorAll("div[class^='mk-']").forEach((element: HTMLElement) => {
 			element.remove();

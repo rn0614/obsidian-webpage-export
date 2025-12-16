@@ -40,22 +40,41 @@ export class ExcalidrawRenderer {
 	 * Excalidraw 데이터를 로드합니다.
 	 */
 	private async loadExcalidrawData(): Promise<void> {
-		// 컨테이너에서 src 속성 찾기
-		// Obsidian은 .internal-embed 요소에 src 속성을 설정합니다
-		let src = this.containerEl.getAttribute('src');
+		// data-excalidraw-source 속성 우선 확인 (플러그인에서 처리된 경우)
+		let src = this.containerEl.getAttribute('data-excalidraw-source');
 		
-		// src가 없으면 내부 요소에서 찾기
+		// filesource 속성 확인 (실제 파일 경로)
 		if (!src) {
-			const embedEl = this.containerEl.querySelector('.internal-embed');
-			src = embedEl?.getAttribute('src') || 
-			      embedEl?.getAttribute('data-src') ||
-			      this.containerEl.getAttribute('data-src');
+			src = this.containerEl.getAttribute('filesource');
+		}
+		
+		// src 속성 확인 (blob: URL 제외)
+		if (!src) {
+			src = this.containerEl.getAttribute('src');
+			if (src && src.startsWith('blob:')) {
+				src = null; // blob URL은 무시
+			}
+		}
+		
+		// 내부 요소에서 찾기
+		if (!src) {
+			const embedEl = this.containerEl.closest('.internal-embed') || 
+			                this.containerEl.querySelector('.internal-embed');
+			if (embedEl) {
+				src = (embedEl as HTMLElement).getAttribute('src');
+				if (src && src.startsWith('blob:')) {
+					src = null; // blob URL은 무시
+				}
+			}
 		}
 
-		// data-href 속성도 확인 (Obsidian이 사용할 수 있음)
+		// data-href 속성도 확인
 		if (!src) {
 			src = this.containerEl.getAttribute('data-href') ||
-			      this.containerEl.querySelector('.internal-embed')?.getAttribute('data-href');
+			      this.containerEl.closest('.internal-embed')?.getAttribute('data-href');
+			if (src && src.startsWith('blob:')) {
+				src = null;
+			}
 		}
 
 		if (!src) {
@@ -74,15 +93,43 @@ export class ExcalidrawRenderer {
 		}
 
 		const contentType = response.headers.get('content-type');
-		if (!contentType?.includes('application/json') && !contentType?.includes('text/plain')) {
-			console.warn('Unexpected content type for Excalidraw file:', contentType);
+		const text = await response.text();
+		
+		// .excalidraw.md 파일인 경우 마크다운에서 Excalidraw 데이터 추출
+		if (excalidrawPath.endsWith('.excalidraw.md') || excalidrawPath.endsWith('.md')) {
+			this.excalidrawData = this.extractExcalidrawFromMarkdown(text);
+		} else {
+			// 일반 JSON 파일
+			this.excalidrawData = JSON.parse(text);
 		}
-
-		this.excalidrawData = await response.json();
 		
 		// 데이터 유효성 검사
 		if (!this.excalidrawData || typeof this.excalidrawData !== 'object') {
 			throw new Error('Invalid Excalidraw data format');
+		}
+	}
+
+	/**
+	 * 마크다운 파일에서 Excalidraw 데이터를 추출합니다.
+	 */
+	private extractExcalidrawFromMarkdown(markdown: string): any {
+		// 마크다운 파일에서 JSON 코드 블록 찾기
+		const jsonMatch = markdown.match(/```json\n([\s\S]*?)\n```/) || 
+		                  markdown.match(/```\n([\s\S]*?)\n```/);
+		
+		if (jsonMatch && jsonMatch[1]) {
+			try {
+				return JSON.parse(jsonMatch[1]);
+			} catch (e) {
+				console.warn('Failed to parse JSON from markdown, trying direct parse');
+			}
+		}
+
+		// JSON 코드 블록이 없으면 전체를 JSON으로 파싱 시도
+		try {
+			return JSON.parse(markdown.trim());
+		} catch (e) {
+			throw new Error('Could not extract Excalidraw data from markdown file');
 		}
 	}
 
@@ -95,13 +142,13 @@ export class ExcalidrawRenderer {
 			return src;
 		}
 
-		// .excalidraw 확장자가 없으면 추가
-		if (!src.endsWith('.excalidraw') && !src.endsWith('.excalidraw.md')) {
-			// 확장자가 없으면 .excalidraw 추가
-			if (!src.includes('.')) {
-				src = src + '.excalidraw';
-			}
+		// blob: URL은 무시
+		if (src.startsWith('blob:')) {
+			throw new Error('Cannot resolve blob URL');
 		}
+
+		// .excalidraw.md 파일은 그대로 사용
+		// .excalidraw 확장자가 없으면 추가하지 않음 (파일명이 정확할 것으로 가정)
 
 		// 현재 문서의 base 경로 계산
 		const currentPath = this.document.pathname;

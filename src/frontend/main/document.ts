@@ -251,15 +251,19 @@ export class WebpageDocument {
 	 */
 	public async processExcalidrawEmbeds(): Promise<void> {
 		// Excalidraw 임베드 찾기
-		// Obsidian은 internal-embed 클래스를 사용하고, src 속성에 파일 경로가 있습니다
-		// 여러 선택자로 찾기: .excalidraw 확장자, data-type 속성, 또는 excalidraw-plugin 클래스
+		// 플러그인에서 처리된 임베드는 .excalidraw-embed-pending 클래스를 가짐
 		const excalidrawEmbeds = Array.from(
 			this.documentEl.querySelectorAll(
+				'.excalidraw-embed-pending, ' +
+				'.excalidraw-svg, ' +
+				'.excalidraw-embedded-img, ' +
 				'.internal-embed[src*=".excalidraw"], ' +
 				'.internal-embed[data-type="excalidraw"], ' +
 				'.internal-embed[src*=".drawing"], ' +
 				'.excalidraw-plugin, ' +
-				'span.internal-embed[src*="excalidraw"]'
+				'img.excalidraw-svg, ' +
+				'img[filesource*=".excalidraw"], ' +
+				'img[data-excalidraw-source]'
 			)
 		) as HTMLElement[];
 
@@ -272,21 +276,41 @@ export class WebpageDocument {
 		// 각 Excalidraw 임베드 처리
 		const promises = excalidrawEmbeds.map(async (embed) => {
 			try {
-				// 이미 SVG로 렌더링된 경우 확인
-				const svg = embed.querySelector('svg');
-				if (svg && embed.classList.contains('excalidraw-plugin')) {
-					// SVG가 있으면 실제 Excalidraw 파일을 찾아서 인터랙티브 뷰어로 교체
-					const src = embed.getAttribute('src') || 
-					            embed.closest('.internal-embed')?.getAttribute('src');
-					if (src) {
-						const renderer = new ExcalidrawRenderer(this, embed);
-						await renderer.render();
+				// data-excalidraw-source 속성 우선 확인 (플러그인에서 처리된 경우)
+				let source = embed.getAttribute('data-excalidraw-source');
+				
+				// filesource 속성 확인 (실제 파일 경로)
+				if (!source) {
+					source = embed.getAttribute('filesource');
+				}
+				
+				// src 속성 확인 (blob URL 제외)
+				if (!source) {
+					const src = embed.getAttribute('src');
+					if (src && !src.startsWith('blob:')) {
+						source = src;
 					}
-				} else {
-					// 일반 임베드 처리
+				}
+
+				// 내부 요소에서 찾기
+				if (!source) {
+					const internalEmbed = embed.closest('.internal-embed') || embed.querySelector('.internal-embed');
+					if (internalEmbed) {
+						const embedSrc = (internalEmbed as HTMLElement).getAttribute('src');
+						if (embedSrc && !embedSrc.startsWith('blob:')) {
+							source = embedSrc;
+						}
+					}
+				}
+
+				if (source) {
+					console.log('Processing Excalidraw with source:', source);
 					const renderer = new ExcalidrawRenderer(this, embed);
 					await renderer.render();
+					return;
 				}
+
+				console.warn('Could not find Excalidraw source for embed:', embed);
 			} catch (error) {
 				console.error('Failed to process Excalidraw embed:', embed, error);
 				// 에러가 발생해도 다른 임베드는 계속 처리
