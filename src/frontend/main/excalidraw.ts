@@ -55,6 +55,15 @@ export class ExcalidrawRenderer {
 				src = null; // blob URL은 무시
 			}
 		}
+
+		// 컨테이너 내부의 img 태그에서 찾기 (div.excalidraw-svg > img 구조)
+		if (!src) {
+			const imgEl = this.containerEl.querySelector('img[filesource], img[data-excalidraw-source]') as HTMLElement | null;
+			if (imgEl) {
+				src = imgEl.getAttribute('data-excalidraw-source') || 
+				      imgEl.getAttribute('filesource');
+			}
+		}
 		
 		// 내부 요소에서 찾기
 		if (!src) {

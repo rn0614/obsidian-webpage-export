@@ -1175,14 +1175,27 @@ export namespace _MarkdownRendererInternal {
 			
 			// blob URL은 웹에서 작동하지 않으므로 제거
 			if (src && src.startsWith("blob:") && filesource) {
-				// blob URL 제거하고 filesource를 data-src로 이동
-				img.removeAttribute("src");
-				img.setAttribute("data-excalidraw-source", filesource);
-				
-				// 프론트엔드에서 처리할 수 있도록 클래스 추가
-				img.classList.add("excalidraw-embed-pending");
-				
-				ExportLog.log(`Replaced blob URL with filesource for Excalidraw: ${filesource}`);
+				// filesource를 HTML 경로로 변환 (Obsidian 경로 -> HTML 경로)
+				try {
+					const obsidianPath = new Path(filesource);
+					// .excalidraw.md 또는 .excalidraw 확장자를 .html로 변경하고 slugify
+					const htmlPath = obsidianPath.slugify(true).setExtension("html");
+					
+					// blob URL 제거하고 변환된 HTML 경로를 data-excalidraw-source로 설정
+					img.removeAttribute("src");
+					img.setAttribute("data-excalidraw-source", htmlPath.path);
+					
+					// 프론트엔드에서 처리할 수 있도록 클래스 추가
+					img.classList.add("excalidraw-embed-pending");
+					
+					ExportLog.log(`Replaced blob URL with HTML path for Excalidraw: ${filesource} -> ${htmlPath.path}`);
+				} catch (error) {
+					// 변환 실패 시 원본 filesource 사용
+					img.removeAttribute("src");
+					img.setAttribute("data-excalidraw-source", filesource);
+					img.classList.add("excalidraw-embed-pending");
+					ExportLog.log(`Replaced blob URL with filesource for Excalidraw (conversion failed): ${filesource}`);
+				}
 			}
 		});
 

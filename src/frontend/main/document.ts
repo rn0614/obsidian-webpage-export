@@ -292,6 +292,15 @@ export class WebpageDocument {
 					}
 				}
 
+				// 컨테이너 내부의 img 태그에서 찾기 (div.excalidraw-svg > img 구조)
+				if (!source) {
+					const imgEl = embed.querySelector('img[filesource], img[data-excalidraw-source]') as HTMLElement | null;
+					if (imgEl) {
+						source = imgEl.getAttribute('data-excalidraw-source') || 
+						         imgEl.getAttribute('filesource');
+					}
+				}
+
 				// 내부 요소에서 찾기
 				if (!source) {
 					const internalEmbed = embed.closest('.internal-embed') || embed.querySelector('.internal-embed');
