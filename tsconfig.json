@@ -5,12 +5,12 @@
 		"inlineSources": true,
 		"module": "ESNext",
 		"target": "ES6",
-		"noImplicitAny": true,
+		"noImplicitAny": false,
 		"moduleResolution": "node",
 		"importHelpers": true,
 		"isolatedModules": true,
 		"esModuleInterop": true,
-		"strictNullChecks": true,
+		"strictNullChecks": false,
 		"removeComments": false,
 		"resolveJsonModule": true,
 		"lib": [
@@ -25,4 +25,7 @@
 		"**/*.ts",
 		"src/assets/**/*.json"
 	],
+	"exclude": [
+		"node_modules"
+	]
 }

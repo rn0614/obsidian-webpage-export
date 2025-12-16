@@ -10,6 +10,7 @@ import { Notice } from "./notifications";
 import { Tags } from "./tags";
 import { Tree } from "./trees";
 import { Aliases } from "./aliases";
+import { ExcalidrawRenderer } from "./excalidraw";
 
 export class WebpageDocument {
 	public title: string = "";
@@ -207,6 +208,11 @@ export class WebpageDocument {
 			this.canvas = new Canvas(this);
 		}
 
+		// Process Excalidraw embeds
+		if (this.isMainDocument || this.isPreview) {
+			await this.processExcalidrawEmbeds();
+		}
+
 		if (this.isMainDocument || this.isPreview)
 			LinkHandler.initializeLinks(this.documentEl ?? this.containerEl);
 
@@ -237,6 +243,57 @@ export class WebpageDocument {
 		for (const listEl of listEls) {
 			this.lists.push(new List(listEl as HTMLElement, undefined));
 		}
+	}
+
+	/**
+	 * 임베드된 Excalidraw 파일을 처리합니다.
+	 * `![[excalidraw파일.excalidraw]]` 형태의 임베드를 찾아 렌더링합니다.
+	 */
+	public async processExcalidrawEmbeds(): Promise<void> {
+		// Excalidraw 임베드 찾기
+		// Obsidian은 internal-embed 클래스를 사용하고, src 속성에 파일 경로가 있습니다
+		// 여러 선택자로 찾기: .excalidraw 확장자, data-type 속성, 또는 excalidraw-plugin 클래스
+		const excalidrawEmbeds = Array.from(
+			this.documentEl.querySelectorAll(
+				'.internal-embed[src*=".excalidraw"], ' +
+				'.internal-embed[data-type="excalidraw"], ' +
+				'.internal-embed[src*=".drawing"], ' +
+				'.excalidraw-plugin, ' +
+				'span.internal-embed[src*="excalidraw"]'
+			)
+		) as HTMLElement[];
+
+		if (excalidrawEmbeds.length === 0) {
+			return;
+		}
+
+		console.log(`Found ${excalidrawEmbeds.length} Excalidraw embed(s)`);
+
+		// 각 Excalidraw 임베드 처리
+		const promises = excalidrawEmbeds.map(async (embed) => {
+			try {
+				// 이미 SVG로 렌더링된 경우 확인
+				const svg = embed.querySelector('svg');
+				if (svg && embed.classList.contains('excalidraw-plugin')) {
+					// SVG가 있으면 실제 Excalidraw 파일을 찾아서 인터랙티브 뷰어로 교체
+					const src = embed.getAttribute('src') || 
+					            embed.closest('.internal-embed')?.getAttribute('src');
+					if (src) {
+						const renderer = new ExcalidrawRenderer(this, embed);
+						await renderer.render();
+					}
+				} else {
+					// 일반 임베드 처리
+					const renderer = new ExcalidrawRenderer(this, embed);
+					await renderer.render();
+				}
+			} catch (error) {
+				console.error('Failed to process Excalidraw embed:', embed, error);
+				// 에러가 발생해도 다른 임베드는 계속 처리
+			}
+		});
+
+		await Promise.allSettled(promises);
 	}
 
 	public postProcess() {
