@@ -1,7 +1,7 @@
 /* Define default values for variables */
 body
 {
-    --line-width: min(40em, 100%);
+    --line-width: min(60em, 100%);
     --line-width-adaptive: min(40em, 100%);
     --file-line-width: 40em;
     --sidebar-width: min(20em, 80vw);
