@@ -6,6 +6,7 @@
 	"scripts": {
 		"dev": "node esbuild.config.mjs",
 		"build": "tsc -noEmit -skipLibCheck && node esbuild.config.mjs production",
+		"deploy": "npm run build && xcopy /Y main.js \"C:\\work\\cursor\\blogging\\quartz\\content-devcheck\\.obsidian\\plugins\\obsidian-webpage-export\\\" && xcopy /Y manifest.json \"C:\\work\\cursor\\blogging\\quartz\\content\\.obsidian\\plugins\\obsidian-webpage-export\\\" && xcopy /Y styles.css \"C:\\work\\cursor\\blogging\\quartz\\content-devcheck\\.obsidian\\plugins\\obsidian-webpage-export\\\" 2>nul",
 		"version": "node version-bump.mjs && git add manifest.json versions.json"
 	},
 	"keywords": [],

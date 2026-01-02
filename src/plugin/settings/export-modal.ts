@@ -72,7 +72,16 @@ export class ExportModal extends Modal
 			scrollArea.style.padding = "1em";
 			scrollArea.style.boxShadow = "0 0 7px 1px inset #00000060";
 
-			const paths = app.vault.getFiles().map(file => new Path(file.path));
+			// Filter files by publish frontmatter
+			const allFiles = app.vault.getFiles();
+			const publishedFiles = allFiles.filter(file => {
+				const frontmatter = app.metadataCache.getFileCache(file)?.frontmatter;
+				return frontmatter?.publish === true;
+			});
+			
+			console.log('[Export Modal] Total files:', allFiles.length, 'Published files:', publishedFiles.length);
+			
+			const paths = publishedFiles.map(file => new Path(file.path));
 			this.filePicker = new FilePickerTree(paths, true, true);
 			this.filePicker.regexBlacklist.push(...Settings.filePickerBlacklist);
 			this.filePicker.regexBlacklist.push(...[Settings.exportOptions.customHeadOptions.sourcePath, Settings.exportOptions.faviconPath]);

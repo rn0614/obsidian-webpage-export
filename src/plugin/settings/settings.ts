@@ -106,6 +106,7 @@ export class Settings
 
 	static getAllFilesFromPaths(paths: string[]): string[]
 	{
+		console.log('[Export] getAllFilesFromPaths: start');
 		const files: string[] = [];
 
 		const allFilePaths = app.vault.getFiles().map(f => f.path);
@@ -131,11 +132,26 @@ export class Settings
 	{
 		const allFiles = this.getAllFilesFromPaths(Settings.exportOptions.filesToExport).map(p => app.vault.getFileByPath(p)).filter(f => f) as TFile[];
 		
+		console.log('[Export] Total files found:', allFiles.length);
+		
 		// Filter files by publish frontmatter
-		return allFiles.filter(file => {
+		const publishedFiles = allFiles.filter(file => {
 			const frontmatter = app.metadataCache.getFileCache(file)?.frontmatter;
-			return frontmatter?.publish === true;
+			const shouldPublish = frontmatter?.publish === true;
+			
+			// Debug log for each file
+			if (shouldPublish) {
+				console.log('[Export] ✅ Publishing:', file.path);
+			} else {
+				console.log('[Export] ⏭️  Skipping:', file.path, '(publish:', frontmatter?.publish, ')');
+			}
+			
+			return shouldPublish;
 		});
+		
+		console.log('[Export] Files to publish:', publishedFiles.length);
+		
+		return publishedFiles;
 	}
 
 	
