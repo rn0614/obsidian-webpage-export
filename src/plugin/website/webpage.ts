@@ -511,13 +511,6 @@ export class Webpage extends Attachment
 
 	public async build(): Promise<Webpage | undefined>
 	{
-		// Check if the file should be published
-		const shouldPublish = this.frontmatter["publish"];
-		if (shouldPublish !== true) {
-			ExportLog.log(`Skipping file (publish: ${shouldPublish}): ${this.source.path}`);
-			return undefined;
-		}
-
 		let isMedia = MarkdownRendererAPI.viewableMediaExtensions.contains(this.source.extension);
 		if (isMedia) this.type = DocumentType.Attachment;
 		

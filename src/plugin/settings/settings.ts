@@ -129,7 +129,13 @@ export class Settings
 
 	static getFilesToExport(): TFile[]
 	{
-		return this.getAllFilesFromPaths(Settings.exportOptions.filesToExport).map(p => app.vault.getFileByPath(p)).filter(f => f) as TFile[];
+		const allFiles = this.getAllFilesFromPaths(Settings.exportOptions.filesToExport).map(p => app.vault.getFileByPath(p)).filter(f => f) as TFile[];
+		
+		// Filter files by publish frontmatter
+		return allFiles.filter(file => {
+			const frontmatter = app.metadataCache.getFileCache(file)?.frontmatter;
+			return frontmatter?.publish === true;
+		});
 	}
 
 	
