@@ -7,7 +7,7 @@ on:
       - "!*b"
 
 env:
-  PLUGIN_NAME: webpage-html-export # Change this to match the id of your plugin.
+  PLUGIN_NAME: webpage-html-export # Change this to match the id of your plugin11.
 
 jobs:
   build:
