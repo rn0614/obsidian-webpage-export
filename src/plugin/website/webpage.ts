@@ -428,6 +428,28 @@ export class Webpage extends Attachment
 
 	private get coverImageURL(): string | undefined
 	{
+		// 1. frontmatter에서 cover 또는 coverImage 필드 확인
+		const frontmatterCover = this.frontmatter["cover"] || this.frontmatter["coverImage"];
+		if (frontmatterCover) {
+			let coverPath = String(frontmatterCover);
+			if (!coverPath.startsWith("http") && !coverPath.startsWith("data:"))
+			{
+				const resolvedPath = this.website.getFilePathFromSrc(coverPath, this.source.path);
+				const attachment = this.website.index.getFile(resolvedPath.pathname, true);
+				
+				if (attachment) {
+					coverPath = attachment.targetPath.path;
+				} else {
+					coverPath = resolvedPath.path;
+				}
+				
+				const mediaPath = Path.joinStrings(this.exportOptions.rssOptions.siteUrl ?? "", coverPath);
+				coverPath = mediaPath.path;
+			}
+			return coverPath;
+		}
+
+		// 2. frontmatter에 없으면 문서의 첫 번째 이미지 사용
 		if (!this.viewElement) return undefined;
 		let mediaPathStr = this.viewElement.querySelector("img")?.getAttribute("src") ?? "";
 		if (mediaPathStr.startsWith("data:")) return undefined;
@@ -489,6 +511,13 @@ export class Webpage extends Attachment
 
 	public async build(): Promise<Webpage | undefined>
 	{
+		// Check if the file should be published
+		const shouldPublish = this.frontmatter["publish"];
+		if (shouldPublish !== true) {
+			ExportLog.log(`Skipping file (publish: ${shouldPublish}): ${this.source.path}`);
+			return undefined;
+		}
+
 		let isMedia = MarkdownRendererAPI.viewableMediaExtensions.contains(this.source.extension);
 		if (isMedia) this.type = DocumentType.Attachment;
 		
@@ -733,6 +762,10 @@ export class Webpage extends Attachment
 		let rootPath = this.pathToRoot.slugified(this.exportOptions.slugifyPaths).path;
 		if (rootPath == "") rootPath = ".";
 		const description = this.description || (this.exportOptions.siteName + " - " + this.title);
+		
+		// coverImageURL 처리: undefined이거나 빈 문자열이면 제거
+		const coverImage = this.coverImageURL && this.coverImageURL !== "undefined" ? this.coverImageURL : undefined;
+		
 		let head =
 `
 <title>${this.title}</title>
@@ -743,11 +776,15 @@ export class Webpage extends Attachment
 <meta property="og:description" content="${description}">
 <meta property="og:type" content="website">
 <meta property="og:url" content="${this.fullURL}">
-<meta property="og:image" content="${this.coverImageURL}">
 `;
+		// coverImage가 있을 때만 og:image 추가
+		if (coverImage) {
+			head += `<meta property="og:image" content="${coverImage}">\n`;
+		}
+		
 		if (this.author && this.author != "")
 		{
-			head += `<meta name="author" content="${this.author}">`;
+			head += `<meta name="author" content="${this.author}">\n`;
 		} 
 
 		this.pageDocument.head.innerHTML = head + this.pageDocument.head.innerHTML;
