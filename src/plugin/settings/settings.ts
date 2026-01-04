@@ -134,12 +134,20 @@ export class Settings
 		
 		console.log('[Export] Total files found:', allFiles.length);
 		
-		// Filter files by publish frontmatter
-		const publishedFiles = allFiles.filter(file => {
+		// Filter files by publish frontmatter (only for markdown files)
+		// Non-markdown files (images, attachments, etc.) are always included
+		const filteredFiles = allFiles.filter(file => {
+			// Allow all non-markdown files (images, videos, pdfs, etc.)
+			if (file.extension !== 'md') {
+				console.log('[Export] ✅ Including (non-markdown):', file.path);
+				return true;
+			}
+			
+			// For markdown files, check publish frontmatter
 			const frontmatter = app.metadataCache.getFileCache(file)?.frontmatter;
 			const shouldPublish = frontmatter?.publish === true;
 			
-			// Debug log for each file
+			// Debug log for markdown files
 			if (shouldPublish) {
 				console.log('[Export] ✅ Publishing:', file.path);
 			} else {
@@ -149,9 +157,9 @@ export class Settings
 			return shouldPublish;
 		});
 		
-		console.log('[Export] Files to publish:', publishedFiles.length);
+		console.log('[Export] Files to export (published MD + all attachments):', filteredFiles.length);
 		
-		return publishedFiles;
+		return filteredFiles;
 	}
 
 	

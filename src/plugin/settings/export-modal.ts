@@ -72,17 +72,24 @@ export class ExportModal extends Modal
 			scrollArea.style.padding = "1em";
 			scrollArea.style.boxShadow = "0 0 7px 1px inset #00000060";
 
-			// Filter files by publish frontmatter
-			const allFiles = app.vault.getFiles();
-			const publishedFiles = allFiles.filter(file => {
-				const frontmatter = app.metadataCache.getFileCache(file)?.frontmatter;
-				return frontmatter?.publish === true;
-			});
+		// Filter files by publish frontmatter (only for markdown files)
+		// Non-markdown files (images, attachments, etc.) are always included
+		const allFiles = app.vault.getFiles();
+		const filteredFiles = allFiles.filter(file => {
+			// Allow all non-markdown files (images, videos, pdfs, etc.)
+			if (file.extension !== 'md') {
+				return true;
+			}
 			
-			console.log('[Export Modal] Total files:', allFiles.length, 'Published files:', publishedFiles.length);
-			
-			const paths = publishedFiles.map(file => new Path(file.path));
-			this.filePicker = new FilePickerTree(paths, true, true);
+			// For markdown files, check publish frontmatter
+			const frontmatter = app.metadataCache.getFileCache(file)?.frontmatter;
+			return frontmatter?.publish === true;
+		});
+		
+		console.log('[Export Modal] Total files:', allFiles.length, 'Filtered files (published MD + all attachments):', filteredFiles.length);
+		
+		const paths = filteredFiles.map(file => new Path(file.path));
+		this.filePicker = new FilePickerTree(paths, true, true);
 			this.filePicker.regexBlacklist.push(...Settings.filePickerBlacklist);
 			this.filePicker.regexBlacklist.push(...[Settings.exportOptions.customHeadOptions.sourcePath, Settings.exportOptions.faviconPath]);
 			this.filePicker.regexWhitelist.push(...Settings.filePickerWhitelist);
