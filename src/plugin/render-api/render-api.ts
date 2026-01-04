@@ -1095,6 +1095,16 @@ export namespace _MarkdownRendererInternal {
 			viewContainer.classList.add("obsidian-document");
 		}
 
+		// Remove excessive minHeight from markdown-preview-sizer and markdown-preview-section
+		html.querySelectorAll(".markdown-preview-sizer, .markdown-preview-section").forEach((element: HTMLElement) => {
+			element.style.minHeight = "";
+			// Only remove height if it's excessively large (> 10000px indicates a rendering artifact)
+			const height = parseInt(element.style.height);
+			if (height && height > 10000) {
+				element.style.height = "";
+			}
+		});
+
 		// remove the extra elements if they are not wanted
 		if (!options.keepModHeaderFooter) {
 			html.querySelectorAll(".mod-header, .mod-footer").forEach((e: HTMLElement) => e.remove());

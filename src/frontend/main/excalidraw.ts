@@ -25,12 +25,26 @@ export class ExcalidrawRenderer {
 			// Excalidraw 데이터 로드
 			await this.loadExcalidrawData();
 			
+			// SVG 이미지로 로드된 경우 렌더링 건너뛰기
+			if (!this.excalidrawData) {
+				return;
+			}
+			
 			// 라이브러리 로드
 			await ExcalidrawLoader.load();
 			
 			// 렌더링
 			await this.renderExcalidraw();
 		} catch (error) {
+			// HTML에서 SVG를 추출한 경우 특별 처리
+			if (error instanceof Error && error.message.startsWith('HTML_WITH_SVG:')) {
+				const svgContent = error.message.substring('HTML_WITH_SVG:'.length);
+				this.containerEl.innerHTML = '';
+				this.containerEl.className = 'excalidraw-svg-wrapper';
+				this.containerEl.innerHTML = svgContent;
+				return;
+			}
+			
 			console.error('Failed to render Excalidraw:', error);
 			this.showError(error instanceof Error ? error.message : 'Failed to render Excalidraw');
 		}
@@ -95,6 +109,12 @@ export class ExcalidrawRenderer {
 		
 		console.log('Loading Excalidraw from:', excalidrawPath);
 		
+		// .excalidraw.svg 파일인 경우 SVG 이미지로 표시
+		if (excalidrawPath.endsWith('.svg')) {
+			await this.loadAsSvgImage(excalidrawPath);
+			return;
+		}
+		
 		// Excalidraw 파일 로드
 		const response = await fetch(excalidrawPath);
 		if (!response.ok) {
@@ -104,9 +124,22 @@ export class ExcalidrawRenderer {
 		const contentType = response.headers.get('content-type');
 		const text = await response.text();
 		
-		// .excalidraw.md 파일인 경우 마크다운에서 Excalidraw 데이터 추출
-		if (excalidrawPath.endsWith('.excalidraw.md') || excalidrawPath.endsWith('.md')) {
+		// 파일 형식에 따라 데이터 추출 (더 구체적인 확장자부터 체크)
+		if (excalidrawPath.endsWith('.html')) {
+			// .excalidraw.html 또는 .html 파일인 경우 HTML에서 Excalidraw 데이터 추출
+			this.excalidrawData = this.extractExcalidrawFromHTML(text);
+		} else if (excalidrawPath.endsWith('.md')) {
+			// .excalidraw.md 또는 .md 파일인 경우 마크다운에서 Excalidraw 데이터 추출
 			this.excalidrawData = this.extractExcalidrawFromMarkdown(text);
+		} else if (excalidrawPath.endsWith('.excalidraw')) {
+			// .excalidraw 파일 - 내용이 HTML인지 JSON인지 확인
+			if (text.trim().startsWith('<')) {
+				// HTML 내용
+				this.excalidrawData = this.extractExcalidrawFromHTML(text);
+			} else {
+				// JSON 내용
+				this.excalidrawData = JSON.parse(text);
+			}
 		} else {
 			// 일반 JSON 파일
 			this.excalidrawData = JSON.parse(text);
@@ -122,6 +155,11 @@ export class ExcalidrawRenderer {
 	 * 마크다운 파일에서 Excalidraw 데이터를 추출합니다.
 	 */
 	private extractExcalidrawFromMarkdown(markdown: string): any {
+		// HTML 내용이면 HTML 추출기로 전달
+		if (markdown.trim().startsWith('<')) {
+			return this.extractExcalidrawFromHTML(markdown);
+		}
+		
 		// 마크다운 파일에서 JSON 코드 블록 찾기
 		const jsonMatch = markdown.match(/```json\n([\s\S]*?)\n```/) || 
 		                  markdown.match(/```\n([\s\S]*?)\n```/);
@@ -140,6 +178,71 @@ export class ExcalidrawRenderer {
 		} catch (e) {
 			throw new Error('Could not extract Excalidraw data from markdown file');
 		}
+	}
+
+	/**
+	 * HTML 파일에서 Excalidraw 데이터를 추출합니다.
+	 * .excalidraw.html 파일은 Excalidraw에서 내보낸 HTML 파일입니다.
+	 */
+	private extractExcalidrawFromHTML(html: string): any {
+		// HTML 파일에서 JSON 데이터를 찾습니다.
+		// 일반적으로 <script> 태그 내에 있거나 data 속성에 있을 수 있습니다.
+		
+		// 패턴 1: <script> 태그 내의 JSON 데이터
+		const scriptMatch = html.match(/<script[^>]*>\s*(?:const|var|let)\s+\w+\s*=\s*({[\s\S]*?})\s*;?\s*<\/script>/i);
+		if (scriptMatch && scriptMatch[1]) {
+			try {
+				return JSON.parse(scriptMatch[1]);
+			} catch (e) {
+				console.warn('Failed to parse JSON from script tag:', e);
+			}
+		}
+
+		// 패턴 2: JSON 주석 또는 메타 데이터
+		const jsonCommentMatch = html.match(/<!--\s*({[\s\S]*?})\s*-->/);
+		if (jsonCommentMatch && jsonCommentMatch[1]) {
+			try {
+				return JSON.parse(jsonCommentMatch[1]);
+			} catch (e) {
+				console.warn('Failed to parse JSON from HTML comment:', e);
+			}
+		}
+
+		// 패턴 3: 전체 HTML을 파싱하여 SVG에서 데이터 추출 시도
+		// Excalidraw HTML 내보내기는 보통 SVG를 포함하고 있어, 이 경우 SVG로 표시
+		const svgMatch = html.match(/<svg[\s\S]*?<\/svg>/i);
+		if (svgMatch) {
+			// SVG만 있는 경우, 컨테이너에 SVG를 직접 표시하고 null 반환하여 렌더링 건너뛰기
+			throw new Error('HTML_WITH_SVG:' + svgMatch[0]);
+		}
+
+		throw new Error('Could not extract Excalidraw data from HTML file. The file may contain only SVG export without scene data.');
+	}
+
+	/**
+	 * SVG 파일을 이미지로 로드합니다.
+	 */
+	private async loadAsSvgImage(svgPath: string): Promise<void> {
+		// SVG 파일은 이미지로 표시
+		const imgEl = document.createElement('img');
+		imgEl.src = svgPath;
+		imgEl.alt = 'Excalidraw Drawing';
+		imgEl.style.width = '100%';
+		imgEl.style.height = 'auto';
+		imgEl.style.maxWidth = '100%';
+		
+		// 에러 처리
+		imgEl.onerror = () => {
+			this.showError(`Failed to load SVG image: ${svgPath}`);
+		};
+
+		// 기존 콘텐츠 대체
+		this.containerEl.innerHTML = '';
+		this.containerEl.className = 'excalidraw-svg-wrapper';
+		this.containerEl.appendChild(imgEl);
+
+		// excalidrawData를 null로 설정하여 렌더링 건너뛰기
+		this.excalidrawData = null;
 	}
 
 	/**
